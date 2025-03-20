@@ -73,14 +73,14 @@ async function handleUserCreated(user: any) {
       .single();
 
     if (!existingUser) {
+
+      console.log(user)
       // Insert new user
       const { error } = await supabase.from("users").insert({
         clerk_user_id: user.id,
         email: user.email_addresses?.[0]?.email_address || null,
         first_name: user.first_name || null,
         last_name: user.last_name || null,
-        username: user.username || null,
-        avatar_url: user.image_url || null,
         tier: 1, // Start at Tier 1
         created_at: new Date().toISOString(),
       });
@@ -103,8 +103,6 @@ async function handleUserUpdated(user: any) {
         email: user.email_addresses?.[0]?.email_address || null,
         first_name: user.first_name || null,
         last_name: user.last_name || null,
-        username: user.username || null,
-        avatar_url: user.image_url || null,
         updated_at: new Date().toISOString(),
       })
       .eq("clerk_user_id", user.id);
