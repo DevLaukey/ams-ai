@@ -74,7 +74,6 @@ export const SidebarNavigation: React.FC<SidebarNavigationProps> = ({
           icon={<BarChart2 size={18} />}
           text="Compare Products"
           href="/compare-products"
-          
           tier={currentTier}
           requiredTier={UserTier.TIER_2}
         />
@@ -113,15 +112,11 @@ export const SidebarNavigation: React.FC<SidebarNavigationProps> = ({
         <SidebarItem
           icon={<RefreshCcw size={18} />}
           text="Supply Exchange"
-          href="/supply-exchange"
+          href="/supply-exchange/catalog"
           expanded
           tier={currentTier}
           requiredTier={UserTier.TIER_3}
-          subItems={[
-            { text: "Exchange list", href: "/supply-exchange/list" },
-            { text: "Catalog", href: "/supply-exchange/catalog" },
-            { text: "Requests", href: "/supply-exchange/requests" },
-          ]}
+          subItems={[{ text: "Catalog", href: "/supply-exchange/catalog" }]}
         />
       </div>
 

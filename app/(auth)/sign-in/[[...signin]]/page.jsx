@@ -46,7 +46,7 @@ export default function SignInPage() {
       <div className="max-w-4xl w-full px-4">
         <div className="flex flex-col md:flex-row bg-white rounded-lg overflow-hidden shadow-md">
           {/* Left side - Branding/Welcome */}
-          <div className="w-full md:w-1/2 p-8 flex flex-col justify-center bg-gradient-to-br from-blue-400 to-purple-400">
+          <div className="w-full md:w-1/2 p-8 flex flex-col justify-center bg-gradient-to-br from-gray-400 to-blue-800">
             <div className="text-center md:text-left">
               <h2 className="text-3xl font-bold text-white mb-4">
                 Welcome Back!
