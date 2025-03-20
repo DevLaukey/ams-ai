@@ -101,7 +101,7 @@
 //             value={message}
 //             onChange={(e) => setMessage(e.target.value)}
 //             onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && handleSend()}
-//             placeholder="Ask Medical Supplies..."
+//             placeholder="Ask about medical supplies."
 //             className="flex-1 bg-transparent focus:outline-none placeholder-gray-400"
 //           />
 
@@ -256,7 +256,7 @@ export default function Chat({ onFileUpload }: ChatProps) {
             value={message}
             onChange={(e) => setMessage(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && handleSend()}
-            placeholder="Ask Medical Supplies..."
+            placeholder="Ask about medical supplies."
             className="flex-1 bg-transparent focus:outline-none placeholder-gray-400"
           />
 

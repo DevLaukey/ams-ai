@@ -372,9 +372,7 @@ export default function ChatPage() {
                     <p className={`mt-2 text-gray-700`}>{message.content}</p>
 
                     {/*  */}
-                    <DefibrillatorComparison
-                      responseText={message.content}
-                    />
+                    <DefibrillatorComparison responseText={message.content} />
                   </>
                 ) : (
                   <p
@@ -435,7 +433,7 @@ export default function ChatPage() {
           <div className="relative">
             <input
               type="text"
-              placeholder="Ask me about Defibrillators"
+              placeholder="Ask about medical supplies"
               value={inputText}
               onChange={(e) => setInputText(e.target.value)}
               onKeyPress={handleKeyPress}

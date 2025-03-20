@@ -446,7 +446,7 @@ It is important to note that all AEDs require regular maintenance, including bat
           <div className="relative">
             <input
               type="text"
-              placeholder="Ask anything"
+              placeholder="Ask about medical supplies"
               value={inputText}
               onChange={(e) => setInputText(e.target.value)}
               onKeyPress={handleKeyPress}
