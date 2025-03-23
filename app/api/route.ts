@@ -1,7 +1,8 @@
 
 import { NextResponse } from 'next/server';
 
-const API_URL = "https://ams-api-534297186371.us-central1.run.app/";
+const API_URL =
+  "https://my-medical-bot-service-534297186371.us-central1.run.app/chat";
 
 export async function POST(request: Request) {
   try {
