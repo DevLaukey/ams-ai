@@ -4,12 +4,11 @@ import { Webhook } from "svix";
 import { headers } from "next/headers";
 
 export async function POST(req: NextRequest) {
-  // Get headers (do NOT use `await`)
- const headerPayload = await headers();
- const svix_id = headerPayload.get("svix-id");
- const svix_timestamp = headerPayload.get("svix-timestamp");
- const svix_signature = headerPayload.get("svix-signature");
-
+  // Get headers
+  const headersList = await headers();
+  const svix_id = headersList.get("svix-id");
+  const svix_timestamp = headersList.get("svix-timestamp");
+  const svix_signature = headersList.get("svix-signature");
   if (!svix_id || !svix_timestamp || !svix_signature) {
     console.error("Error: Missing Svix headers");
     return NextResponse.json(
@@ -53,7 +52,7 @@ export async function POST(req: NextRequest) {
 
   // Parse the verified payload
   const body = JSON.parse(payload);
-  const eventType = evt.type;
+  const eventType = body.type; // Use body.type instead of evt.type
 
   console.log(`✅ Received Clerk webhook event: ${eventType}`);
 
