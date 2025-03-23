@@ -8,6 +8,13 @@ export async function POST(request: Request) {
   try {
     const body = await request.json();
 
+    // add session id to the body
+    const sessionId = "session-id"
+
+    if (!body.sessionId) {
+      body.session_id = sessionId;
+    }
+
     const response = await fetch(API_URL, {
       method: 'POST',
       headers: {
