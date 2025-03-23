@@ -1,5 +1,4 @@
-
-import { NextResponse } from 'next/server';
+import { NextResponse } from "next/server";
 
 const API_URL =
   "https://my-medical-bot-service-534297186371.us-central1.run.app/chat";
@@ -8,23 +7,54 @@ export async function POST(request: Request) {
   try {
     const body = await request.json();
 
-    // add session id to the body
-    const sessionId = "session-id"
+    // Prepare the request body in the format expected by the API
+    // Log the incoming request for debugging
+    console.log("Incoming request body:", body);
 
-    if (!body.sessionId) {
-      body.session_id = sessionId;
+    // Check if we have either message or question field
+    const userMessage = body.message || body.question;
+
+    if (!userMessage) {
+      return NextResponse.json(
+        {
+          error: "Missing required field: message or question",
+        },
+        { status: 400 }
+      );
     }
 
+    // Prepare the request body in the format expected by the API
+    const requestBody = {
+      session_id: body.session_id || "new-test",
+      message: userMessage,
+    };
+
+    // Log what we're sending to the API
+    console.log("Sending to API:", requestBody);
+
     const response = await fetch(API_URL, {
-      method: 'POST',
+      method: "POST",
       headers: {
-        'Content-Type': 'application/json',
+        "Content-Type": "application/json",
       },
-      body: JSON.stringify(body),
+      body: JSON.stringify(requestBody),
     });
 
     if (!response.ok) {
-      throw new Error(`API returned ${response.status}`);
+      // Try to get more information about the error
+      const errorText = await response.text();
+      console.error(`API error (${response.status}):`, errorText);
+
+      try {
+        // If it's JSON, parse it for better error details
+        const errorJson = JSON.parse(errorText);
+        throw new Error(
+          `API returned ${response.status}: ${JSON.stringify(errorJson)}`
+        );
+      } catch (e) {
+        // If not JSON, use the raw text
+        throw new Error(`API returned ${response.status}: ${errorText}`);
+      }
     }
 
     const data = await response.json();
@@ -32,13 +62,13 @@ export async function POST(request: Request) {
     // Return the response in the same format as the external API
     return NextResponse.json(data);
   } catch (error) {
-    console.error('Error in chat API route:', error);
+    console.error("Error in chat API route:", error);
     return NextResponse.json(
       {
         response: {
-          error: 'Failed to process request',
+          error: "Failed to process request",
           response:
-            'I apologize, but I encountered an error processing your request. Please try again.',
+            "I apologize, but I encountered an error processing your request. Please try again.",
         },
       },
       { status: 500 }

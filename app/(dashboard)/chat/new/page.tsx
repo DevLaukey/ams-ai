@@ -67,7 +67,6 @@ const DefibrillatorComparison = ({
       if (match) {
         const [_, number, name, description] = match;
 
-        console.log(_, number, name, description);
         // Parse price
         const priceMatch = description.match(/\$[\d,]+/);
         const price = priceMatch ? priceMatch[0] : "Price not specified";
@@ -206,10 +205,13 @@ export default function ChatPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [searchText, setSearchText] = useState("");
   const [currentTime, setCurrentTime] = useState<string>("");
+  const [sessionId, setSessionId] = useState<string>("");
 
-  // Set the initial time after component mounts (client-side only)
+  // Set the initial time and generate session ID
   useEffect(() => {
     setCurrentTime(new Date().toLocaleString());
+    // Generate a random session ID
+    setSessionId(`session-${Math.random().toString(36).substring(2, 15)}`);
   }, []);
 
   const handleSendMessage = async () => {
@@ -225,31 +227,31 @@ export default function ChatPage() {
     setMessages((prev) => [...prev, userMessage]);
 
     try {
-      // POST to the local /api route
+      // POST to the local /api route with the correct format
       const response = await fetch("/api", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          question: inputText,
+          session_id: sessionId,
+          message: inputText, // Update this to match what the API expects
         }),
       });
 
       const data = await response.json();
 
-      console.log(data);
+      console.log("API Response:", data);
       const aiMessage = {
         type: "ai",
-        content: data?.response?.response ?? "",
+        content: data?.response ?? "",
         timestamp: new Date().toLocaleString(),
         sources: data?.response?.sources ?? [],
       };
 
       setMessages((prev) => [...prev, aiMessage]);
     } catch (error) {
-
-      console.log(error);
+      console.error("Error sending message:", error);
       const errorMessage = {
         type: "error",
         content: "Sorry, there was an error processing your request.",
@@ -371,7 +373,7 @@ export default function ChatPage() {
                   <>
                     <p className={`mt-2 text-gray-700`}>{message.content}</p>
 
-                    {/*  */}
+                    {/* Defibrillator Component */}
                     <DefibrillatorComparison responseText={message.content} />
                   </>
                 ) : (
