@@ -4,11 +4,12 @@ import { Webhook } from "svix";
 import { headers } from "next/headers";
 
 export async function POST(req: NextRequest) {
-  // Get headers
-  const headersList = await headers();
+  // Get headers - correctly using headers() without await
+  const headersList = headers();
   const svix_id = headersList.get("svix-id");
   const svix_timestamp = headersList.get("svix-timestamp");
   const svix_signature = headersList.get("svix-signature");
+
   if (!svix_id || !svix_timestamp || !svix_signature) {
     console.error("Error: Missing Svix headers");
     return NextResponse.json(
@@ -52,7 +53,7 @@ export async function POST(req: NextRequest) {
 
   // Parse the verified payload
   const body = JSON.parse(payload);
-  const eventType = body.type; // Use body.type instead of evt.type
+  const eventType = body.type;
 
   console.log(`✅ Received Clerk webhook event: ${eventType}`);
 
@@ -80,6 +81,8 @@ export async function POST(req: NextRequest) {
 async function handleUserCreated(user: any) {
   try {
     console.log("🚀 Handling user.created event:", user);
+    console.log("User ID from Clerk:", user.id);
+    console.log("User email:", user.email_addresses?.[0]?.email_address);
 
     // Check if user already exists
     const { data: existingUser, error: fetchError } = await supabase
@@ -88,31 +91,40 @@ async function handleUserCreated(user: any) {
       .eq("clerk_user_id", user.id)
       .single();
 
-    if (fetchError && fetchError.code !== "PGRST116") {
+    if (fetchError) {
       console.error("Error checking existing user:", fetchError);
+      // PGRST116 is the "not found" error code from PostgREST
+      if (fetchError.code !== "PGRST116") {
+        return;
+      }
+    }
+
+    if (existingUser) {
+      console.log("⚠️ User already exists in Supabase:", existingUser);
       return;
     }
 
-    if (!existingUser) {
-      // Insert new user
-      const { error } = await supabase.from("users").insert([
-        {
-          clerk_user_id: user.id,
-          email: user.email_addresses?.[0]?.email_address || null,
-          first_name: user.first_name || null,
-          last_name: user.last_name || null,
-          tier: 1, // Default to Tier 1
-          created_at: new Date().toISOString(),
-        },
-      ]);
+    // Insert new user
+    const newUser = {
+      clerk_user_id: user.id,
+      email: user.email_addresses?.[0]?.email_address || null,
+      first_name: user.first_name || null,
+      last_name: user.last_name || null,
+      tier: 1, // Default to Tier 1
+      created_at: new Date().toISOString(),
+    };
 
-      if (error) {
-        console.error("Error inserting new user:", error);
-      } else {
-        console.log("✅ User successfully created in Supabase.");
-      }
+    console.log("Creating new user in Supabase:", newUser);
+
+    const { data, error } = await supabase
+      .from("users")
+      .insert([newUser])
+      .select();
+
+    if (error) {
+      console.error("Error inserting new user:", error);
     } else {
-      console.log("⚠️ User already exists in Supabase.");
+      console.log("✅ User successfully created in Supabase:", data);
     }
   } catch (error) {
     console.error("Error in handleUserCreated:", error);
@@ -123,20 +135,25 @@ async function handleUserUpdated(user: any) {
   try {
     console.log("🔄 Handling user.updated event:", user);
 
-    const { error } = await supabase
+    const updateData = {
+      email: user.email_addresses?.[0]?.email_address || null,
+      first_name: user.first_name || null,
+      last_name: user.last_name || null,
+      updated_at: new Date().toISOString(),
+    };
+
+    console.log("Updating user in Supabase:", updateData);
+
+    const { data, error } = await supabase
       .from("users")
-      .update({
-        email: user.email_addresses?.[0]?.email_address || null,
-        first_name: user.first_name || null,
-        last_name: user.last_name || null,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("clerk_user_id", user.id);
+      .update(updateData)
+      .eq("clerk_user_id", user.id)
+      .select();
 
     if (error) {
       console.error("Error updating user in database:", error);
     } else {
-      console.log("✅ User successfully updated in Supabase.");
+      console.log("✅ User successfully updated in Supabase:", data);
     }
   } catch (error) {
     console.error("Error in handleUserUpdated:", error);
@@ -147,15 +164,16 @@ async function handleUserDeleted(user: any) {
   try {
     console.log("🗑️ Handling user.deleted event:", user);
 
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from("users")
       .delete()
-      .eq("clerk_user_id", user.id);
+      .eq("clerk_user_id", user.id)
+      .select();
 
     if (error) {
       console.error("Error deleting user from database:", error);
     } else {
-      console.log("✅ User successfully deleted from Supabase.");
+      console.log("✅ User successfully deleted from Supabase:", data);
     }
   } catch (error) {
     console.error("Error in handleUserDeleted:", error);
