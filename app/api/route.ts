@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 const API_URL =
-  "https://my-medical-bot-service-534297186371.us-central1.run.app/chat";
+  "https://ndpezwwu5mbyhl2njo2eyhg6zq0tewvb.lambda-url.us-east-1.on.aws/";
 
 export async function POST(request: Request) {
   try {
@@ -25,8 +25,7 @@ export async function POST(request: Request) {
 
     // Prepare the request body in the format expected by the API
     const requestBody = {
-      session_id: body.session_id || "new-test",
-      message: userMessage,
+      query: userMessage,
     };
 
     // Log what we're sending to the API

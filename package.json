@@ -2,7 +2,7 @@
   "name": "ams-ai",
   "version": "0.1.0",
   "private": true,
-  "proxy": "https://my-medical-bot-service-534297186371.us-central1.run.app/chat",
+  "proxy": "https://ndpezwwu5mbyhl2njo2eyhg6zq0tewvb.lambda-url.us-east-1.on.aws/",
   "scripts": {
     "dev": "next dev --turbopack",
     "build": "next build",
