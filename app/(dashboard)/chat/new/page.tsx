@@ -295,7 +295,7 @@ export default function ChatPage() {
               <Menu className="h-6 w-6" />
             </button>
             <h1 className="text-xl font-semibold text-gray-800">
-              Request for Quote
+              Find out about a medical device
             </h1>
           </div>
           <div className="flex items-center space-x-4">
@@ -339,10 +339,12 @@ export default function ChatPage() {
                   <span className="text-gray-400 text-sm">{currentTime}</span>
                 </div>
                 <p className="mt-2 text-gray-700">
-                  For which products would you like to obtain quotes?
+                  I'm here to assist you with any medical supply needs you may
+                  supplies have.
                 </p>
                 <p className="mt-2 text-gray-600">
-                  Select product via search or type in product name
+                  Is there a particular type of medical equipment or you're
+                  interested in today?
                 </p>
               </div>
             </div>
