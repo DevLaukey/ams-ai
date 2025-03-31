@@ -295,7 +295,7 @@ export default function ChatPage() {
               <Menu className="h-6 w-6" />
             </button>
             <h1 className="text-xl font-semibold text-gray-800">
-              Find out about a medical device
+              AMS AI
             </h1>
           </div>
           <div className="flex items-center space-x-4">
