@@ -2,7 +2,7 @@
   "name": "ams-ai",
   "version": "0.1.0",
   "private": true,
-  "proxy": "https://ndpezwwu5mbyhl2njo2eyhg6zq0tewvb.lambda-url.us-east-1.on.aws/",
+  "proxy": "http://3.92.135.80:5000/api/chat",
   "scripts": {
     "dev": "next dev --turbopack",
     "build": "next build",
