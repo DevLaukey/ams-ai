@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
+// Alternative options:
 import { 
   Search, 
   Bell, 
@@ -8,21 +9,27 @@ import {
   X, 
   Plus,
   Check,
-  Info
+  Info,
+  Box,       // Try this instead of Cube
+  LayoutGrid,   // Try this instead of Square
+  Square,
+  Boxes
 } from "lucide-react";
+import * as THREE from "three";
+import { OrbitControls } from "three/examples/jsm/controls/OrbitControls";
 
 interface DefibrillatorProduct {
   id: string;
   title: string;
   price: number;
-  weight: string;  // in lbs
+  weight: string; // in lbs
   chargeTime: string; // in seconds
   dimensions: string;
   operationType: string;
   powerSource: string;
   brand: string;
   imageUrl?: string;
-  
+
   // Parsed numeric values for Pareto calculations
   weightValue?: number;
   chargeTimeValue?: number;
@@ -41,7 +48,17 @@ export default function InteractiveCompareProducts() {
   });
   const [hoveredProduct, setHoveredProduct] = useState<string | null>(null);
   const [selectedTab, setSelectedTab] = useState<"graph" | "table">("graph");
+  const [viewMode, setViewMode] = useState<"2d" | "3d">("3d");
   const [showTooltip, setShowTooltip] = useState(false);
+
+  // Refs for Three.js
+  const containerRef = useRef<HTMLDivElement>(null);
+  const sceneRef = useRef<THREE.Scene | null>(null);
+  const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
+  const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
+  const controlsRef = useRef<OrbitControls | null>(null);
+  const pointsRef = useRef<{ [key: string]: THREE.Mesh }>({});
+  const frameIdRef = useRef<number | null>(null);
 
   // Mock data based on the Excel file structure
   useEffect(() => {
@@ -180,7 +197,7 @@ export default function InteractiveCompareProducts() {
     return calculateParetoEfficiency(productsWithNumericValues);
   };
 
-  // Function to calculate Pareto efficiency
+  // Function to calculate Pareto efficiency in 3D
   const calculateParetoEfficiency = (productsData: DefibrillatorProduct[]) => {
     return productsData.map((product) => {
       // A product is Pareto efficient if no other product is better in all dimensions
@@ -287,6 +304,320 @@ export default function InteractiveCompareProducts() {
 
     setPriorities(newPriorities);
   };
+
+  // THREE.js setup and rendering
+  useEffect(() => {
+    if (!containerRef.current || selectedTab !== "graph" || viewMode !== "3d")
+      return;
+
+    // Initialize scene
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0xf8f9fa);
+    sceneRef.current = scene;
+
+    // Initialize camera
+    const camera = new THREE.PerspectiveCamera(
+      75,
+      containerRef.current.clientWidth / containerRef.current.clientHeight,
+      0.1,
+      1000
+    );
+    camera.position.z = 5;
+    camera.position.y = 2;
+    camera.position.x = 2;
+    cameraRef.current = camera;
+
+    // Initialize renderer
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(
+      containerRef.current.clientWidth,
+      containerRef.current.clientHeight
+    );
+    containerRef.current.appendChild(renderer.domElement);
+    rendererRef.current = renderer;
+
+    // Add controls
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.05;
+    controlsRef.current = controls;
+
+    // Add axes
+    const axesHelper = new THREE.AxesHelper(5);
+    scene.add(axesHelper);
+
+    // Add grid
+    const gridHelper = new THREE.GridHelper(10, 10);
+    scene.add(gridHelper);
+
+    // Add ambient light
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+    scene.add(ambientLight);
+
+    // Add directional light
+    const directionalLight = new THREE.DirectionalLight(0xffffff, 0.5);
+    directionalLight.position.set(5, 5, 5);
+    scene.add(directionalLight);
+
+    // Add axis labels
+    const addAxisLabel = (
+      text: string,
+      position: THREE.Vector3,
+      color: string
+    ) => {
+      const canvas = document.createElement("canvas");
+      canvas.width = 128;
+      canvas.height = 64;
+      const context = canvas.getContext("2d");
+      if (context) {
+        context.fillStyle = color;
+        context.font = "bold 24px Arial";
+        context.textAlign = "center";
+        context.fillText(text, 64, 32);
+
+        const texture = new THREE.CanvasTexture(canvas);
+        const material = new THREE.SpriteMaterial({ map: texture });
+        const sprite = new THREE.Sprite(material);
+        sprite.position.copy(position);
+        sprite.scale.set(1.5, 0.75, 1);
+        scene.add(sprite);
+      }
+    };
+
+    // Add axis labels
+    addAxisLabel("Price", new THREE.Vector3(5.5, 0, 0), "#4338ca");
+    addAxisLabel("Weight", new THREE.Vector3(0, 5.5, 0), "#4338ca");
+    addAxisLabel("Charge Time", new THREE.Vector3(0, 0, 5.5), "#4338ca");
+
+    // Clean up function
+    return () => {
+      if (containerRef.current && rendererRef.current) {
+        containerRef.current.removeChild(rendererRef.current.domElement);
+      }
+      if (frameIdRef.current !== null) {
+        cancelAnimationFrame(frameIdRef.current);
+      }
+
+      // Clear scene
+      if (sceneRef.current) {
+        sceneRef.current.clear();
+      }
+
+      // Dispose of resources
+      Object.values(pointsRef.current).forEach((mesh) => {
+        mesh.geometry.dispose();
+        if (Array.isArray(mesh.material)) {
+          mesh.material.forEach((material) => material.dispose());
+        } else {
+          mesh.material.dispose();
+        }
+      });
+
+      rendererRef.current?.dispose();
+      rendererRef.current = null;
+      sceneRef.current = null;
+      cameraRef.current = null;
+      controlsRef.current = null;
+      pointsRef.current = {};
+    };
+  }, [selectedTab, viewMode]);
+
+  // Render 3D points
+  useEffect(() => {
+    if (
+      !sceneRef.current ||
+      !cameraRef.current ||
+      !rendererRef.current ||
+      !controlsRef.current ||
+      selectedTab !== "graph" ||
+      viewMode !== "3d"
+    )
+      return;
+
+    // Clear previous points
+    Object.values(pointsRef.current).forEach((mesh) => {
+      if (sceneRef.current) {
+        sceneRef.current.remove(mesh);
+      }
+      mesh.geometry.dispose();
+      if (Array.isArray(mesh.material)) {
+        mesh.material.forEach((material) => material.dispose());
+      } else {
+        mesh.material.dispose();
+      }
+    });
+    pointsRef.current = {};
+
+    // Find max values for normalization
+    const maxPrice = Math.max(...products.map((p) => p.priceValue || 0));
+    const maxWeight = Math.max(...products.map((p) => p.weightValue || 0));
+    const maxChargeTime = Math.max(
+      ...products.map((p) => p.chargeTimeValue || 0)
+    );
+
+    // Add points for each product
+    products.forEach((product) => {
+      if (
+        !product.priceValue ||
+        !product.weightValue ||
+        !product.chargeTimeValue
+      )
+        return;
+
+      // Normalize values to 0-10 range (to fit in our scene)
+      const x = (product.priceValue / maxPrice) * 10;
+      const y = (product.weightValue / maxWeight) * 10;
+      const z = (product.chargeTimeValue / maxChargeTime) * 10;
+
+      // Create sphere for point
+      const geometry = new THREE.SphereGeometry(0.2, 32, 32);
+
+      // Set material based on whether the product is Pareto efficient
+      const material = new THREE.MeshStandardMaterial({
+        color: product.paretoEfficient ? 0x4f46e5 : 0xcccccc,
+        emissive: product.selected ? 0x22c55e : 0x000000,
+        emissiveIntensity: product.selected ? 0.5 : 0,
+      });
+
+      const sphere = new THREE.Mesh(geometry, material);
+      sphere.position.set(x, y, z);
+
+      // Add to scene
+      if (sceneRef.current) {
+        sceneRef.current.add(sphere);
+      }
+
+      // Store reference for later updates
+      pointsRef.current[product.id] = sphere;
+
+      // Add text label for product ID
+      const canvas = document.createElement("canvas");
+      canvas.width = 64;
+      canvas.height = 64;
+      const context = canvas.getContext("2d");
+      if (context) {
+        context.fillStyle = product.paretoEfficient ? "#4f46e5" : "#666666";
+        context.font = "bold 40px Arial";
+        context.textAlign = "center";
+        context.fillText(product.id, 32, 40);
+
+        const texture = new THREE.CanvasTexture(canvas);
+        const labelMaterial = new THREE.SpriteMaterial({ map: texture });
+        const sprite = new THREE.Sprite(labelMaterial);
+        sprite.position.set(x, y + 0.4, z);
+        sprite.scale.set(0.6, 0.6, 0.6);
+        if (sceneRef.current) {
+          sceneRef.current.add(sprite);
+        }
+      }
+    });
+
+    // Connect Pareto efficient points with lines
+    const paretoProducts = products
+      .filter((p) => p.paretoEfficient)
+      .sort((a, b) => (a.priceValue || 0) - (b.priceValue || 0));
+
+    // Create convex hull of Pareto efficient points
+    if (paretoProducts.length >= 3) {
+      // Create lines between Pareto-efficient points
+      for (let i = 0; i < paretoProducts.length; i++) {
+        for (let j = i + 1; j < paretoProducts.length; j++) {
+          const product1 = paretoProducts[i];
+          const product2 = paretoProducts[j];
+
+          if (
+            !product1.priceValue ||
+            !product1.weightValue ||
+            !product1.chargeTimeValue ||
+            !product2.priceValue ||
+            !product2.weightValue ||
+            !product2.chargeTimeValue
+          )
+            continue;
+
+          const x1 = (product1.priceValue / maxPrice) * 10;
+          const y1 = (product1.weightValue / maxWeight) * 10;
+          const z1 = (product1.chargeTimeValue / maxChargeTime) * 10;
+
+          const x2 = (product2.priceValue / maxPrice) * 10;
+          const y2 = (product2.weightValue / maxWeight) * 10;
+          const z2 = (product2.chargeTimeValue / maxChargeTime) * 10;
+
+          const points = [
+            new THREE.Vector3(x1, y1, z1),
+            new THREE.Vector3(x2, y2, z2),
+          ];
+
+          const geometry = new THREE.BufferGeometry().setFromPoints(points);
+          const material = new THREE.LineBasicMaterial({
+            color: 0x4f46e5,
+            transparent: true,
+            opacity: 0.6,
+            linewidth: 1,
+          });
+
+          const line = new THREE.Line(geometry, material);
+          if (sceneRef.current) {
+            sceneRef.current.add(line);
+          }
+        }
+      }
+    }
+
+    // Animation loop
+    const animate = () => {
+      frameIdRef.current = requestAnimationFrame(animate);
+
+      if (controlsRef.current) {
+        controlsRef.current.update();
+      }
+
+      if (rendererRef.current && cameraRef.current && sceneRef.current) {
+        rendererRef.current.render(sceneRef.current, cameraRef.current);
+      }
+    };
+
+    animate();
+
+    // Handle window resize
+    const handleResize = () => {
+      if (!containerRef.current || !cameraRef.current || !rendererRef.current)
+        return;
+
+      const width = containerRef.current.clientWidth;
+      const height = containerRef.current.clientHeight;
+
+      cameraRef.current.aspect = width / height;
+      cameraRef.current.updateProjectionMatrix();
+
+      rendererRef.current.setSize(width, height);
+    };
+
+    window.addEventListener("resize", handleResize);
+
+    return () => {
+      window.removeEventListener("resize", handleResize);
+      if (frameIdRef.current !== null) {
+        cancelAnimationFrame(frameIdRef.current);
+      }
+    };
+  }, [products, selectedTab, viewMode]);
+
+  // Update 3D visualization when product selection changes
+  useEffect(() => {
+    if (!sceneRef.current || viewMode !== "3d") return;
+
+    // Update material for each point based on selection
+    products.forEach((product) => {
+      const mesh = pointsRef.current[product.id];
+      if (mesh) {
+        const material = mesh.material as THREE.MeshStandardMaterial;
+        material.emissive.set(product.selected ? 0x22c55e : 0x000000);
+        material.emissiveIntensity = product.selected ? 0.5 : 0;
+        material.needsUpdate = true;
+      }
+    });
+  }, [products, viewMode]);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -424,6 +755,35 @@ export default function InteractiveCompareProducts() {
                 Comparison Table
               </button>
             </div>
+
+            {selectedTab === "graph" && (
+              <div className="flex justify-end items-center p-2 bg-gray-50">
+                <div className="flex space-x-2">
+                  <button
+                    className={`flex items-center px-3 py-1.5 rounded text-sm font-medium ${
+                      viewMode === "2d"
+                        ? "bg-indigo-100 text-indigo-700"
+                        : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                    }`}
+                    onClick={() => setViewMode("2d")}
+                  >
+                    <Square className="h-4 w-4 mr-1.5" />
+                    2D View
+                  </button>
+                  <button
+                    className={`flex items-center px-3 py-1.5 rounded text-sm font-medium ${
+                      viewMode === "3d"
+                        ? "bg-indigo-100 text-indigo-700"
+                        : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                    }`}
+                    onClick={() => setViewMode("3d")}
+                  >
+                    <Boxes className="h-4 w-4 mr-1.5" />
+                    3D View
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="p-4">
@@ -432,7 +792,9 @@ export default function InteractiveCompareProducts() {
                 <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center">
                     <h2 className="text-lg font-medium text-gray-900">
-                      Optimal Choices (Pareto Front)
+                      {viewMode === "3d"
+                        ? "3D Pareto Front"
+                        : "Optimal Choices (Pareto Front)"}
                     </h2>
                     <button
                       className="ml-2 text-gray-400 hover:text-gray-600"
@@ -442,10 +804,10 @@ export default function InteractiveCompareProducts() {
                       <Info className="h-4 w-4" />
                     </button>
                     {showTooltip && (
-                      <div className="absolute mt-8 bg-gray-800 text-white text-xs rounded p-2 max-w-xs">
-                        The Pareto front shows optimal choices where improving
-                        one attribute requires sacrificing another. Click on
-                        points to select/compare products.
+                      <div className="absolute mt-8 bg-gray-800 text-white text-xs rounded p-2 max-w-xs z-50">
+                        {viewMode === "3d"
+                          ? "The 3D Pareto front visualizes all three criteria simultaneously. Products are optimal when no other product is better in all three dimensions."
+                          : "The Pareto front shows optimal choices where improving one attribute requires sacrificing another. Click on points to select/compare products."}
                       </div>
                     )}
                   </div>
@@ -465,182 +827,259 @@ export default function InteractiveCompareProducts() {
                   </div>
                 </div>
 
-                <div className="relative h-72 border border-gray-200 rounded-lg p-4">
-                  {/* X-axis and Y-axis labels */}
-                  <div className="absolute inset-x-0 bottom-2 flex justify-center text-sm text-gray-600">
-                    Price (lower is better)
-                  </div>
-                  <div className="absolute left-2 inset-y-0 flex items-center -rotate-90 transform origin-center text-sm text-gray-600">
-                    Weight (lower is better)
-                  </div>
+                {viewMode === "3d" ? (
+                  <div className="relative" style={{ height: "500px" }}>
+                    {/* 3D Visualization */}
+                    <div
+                      ref={containerRef}
+                      className="w-full h-full border border-gray-200 rounded-lg overflow-hidden"
+                    ></div>
 
-                  {/* Scatter plot points */}
-                  {products.map((product) => {
-                    // Normalize coordinates for the chart
-                    const maxPrice = Math.max(
-                      ...products.map((p) => p.priceValue || 0)
-                    );
-                    const maxWeight = Math.max(
-                      ...products.map((p) => p.weightValue || 0)
-                    );
+                    <div className="absolute bottom-4 left-4 bg-white p-2 rounded-lg shadow-md text-xs">
+                      <div className="font-medium mb-1">Navigation:</div>
+                      <div>• Rotate: Left click + drag</div>
+                      <div>• Pan: Right click + drag</div>
+                      <div>• Zoom: Mouse wheel</div>
+                    </div>
 
-                    const x =
-                      100 - ((product.priceValue || 0) / maxPrice) * 80 + 10; // 10-90% of width
-                    const y =
-                      10 + ((product.weightValue || 0) / maxWeight) * 80; // 10-90% of height, inverted for y-axis
-
-                    // Size based on charge time (smaller is better)
-                    const maxChargeTime = Math.max(
-                      ...products.map((p) => p.chargeTimeValue || 0)
-                    );
-                    const size =
-                      10 -
-                      ((product.chargeTimeValue || 0) / maxChargeTime) * 6 +
-                      4; // 4-10px
-
-                    const isHovered = hoveredProduct === product.id;
-
-                    return (
-                      <React.Fragment key={product.id}>
-                        <button
-                          className={`absolute transform -translate-x-1/2 -translate-y-1/2 rounded-full flex items-center justify-center text-xs font-bold cursor-pointer hover:z-10 transition-all duration-200 ${
-                            product.paretoEfficient
-                              ? "bg-indigo-500 hover:bg-indigo-600 text-white"
-                              : "bg-gray-300 hover:bg-gray-400 text-gray-900"
-                          } ${
-                            product.selected
-                              ? "ring-2 ring-offset-2 ring-green-500"
-                              : ""
-                          } ${isHovered ? "z-30 scale-110" : "z-20"}`}
-                          style={{
-                            left: `${x}%`,
-                            top: `${y}%`,
-                            width: `${size * 2}px`,
-                            height: `${size * 2}px`,
-                          }}
-                          onClick={() => toggleProductSelection(product.id)}
-                          onMouseEnter={() => setHoveredProduct(product.id)}
-                          onMouseLeave={() => setHoveredProduct(null)}
-                        >
-                          {product.id}
-                        </button>
-
-                        {/* Hover tooltip */}
-                        {isHovered && (
-                          <div
-                            className="absolute bg-white border border-gray-200 rounded shadow-lg p-2 z-40 text-xs w-48"
-                            style={{
-                              left: `${Math.min(x + 5, 85)}%`,
-                              top: `${Math.min(y - 5, 80)}%`,
-                            }}
-                          >
-                            <div className="font-bold text-gray-900 mb-1">
-                              {product.title}
-                            </div>
-                            <div className="grid grid-cols-2 gap-x-2 gap-y-1">
-                              <div className="text-gray-500">Price:</div>
-                              <div className="text-gray-900 font-medium">
-                                ${product.price.toLocaleString()}
-                              </div>
-                              <div className="text-gray-500">Weight:</div>
-                              <div className="text-gray-900 font-medium">
-                                {product.weight}
-                              </div>
-                              <div className="text-gray-500">Charge Time:</div>
-                              <div className="text-gray-900 font-medium">
-                                {product.chargeTime}
-                              </div>
-                              <div className="text-gray-500">Score:</div>
-                              <div className="text-gray-900 font-medium">
-                                {calculateScore(product).toFixed(1)}
-                              </div>
-                            </div>
-                            <div className="mt-1 pt-1 border-t border-gray-200 text-center">
-                              Click to {product.selected ? "remove" : "select"}
-                            </div>
+                    {hoveredProduct && (
+                      <div className="absolute top-4 right-4 bg-white border border-gray-200 rounded shadow-lg p-3 z-40 text-sm w-64">
+                        <div className="font-bold text-gray-900 mb-2">
+                          Product {hoveredProduct}
+                        </div>
+                        <div className="grid grid-cols-2 gap-x-2 gap-y-1">
+                          <div className="text-gray-500">Price:</div>
+                          <div className="text-gray-900 font-medium">
+                            $
+                            {products
+                              .find((p) => p.id === hoveredProduct)
+                              ?.price.toLocaleString()}
                           </div>
-                        )}
-                      </React.Fragment>
-                    );
-                  })}
+                          <div className="text-gray-500">Weight:</div>
+                          <div className="text-gray-900 font-medium">
+                            {
+                              products.find((p) => p.id === hoveredProduct)
+                                ?.weight
+                            }
+                          </div>
+                          <div className="text-gray-500">Charge Time:</div>
+                          <div className="text-gray-900 font-medium">
+                            {
+                              products.find((p) => p.id === hoveredProduct)
+                                ?.chargeTime
+                            }
+                          </div>
+                          <div className="text-gray-500">Score:</div>
+                          <div className="text-gray-900 font-medium">
+                            {calculateScore(
+                              products.find((p) => p.id === hoveredProduct) ||
+                                products[0]
+                            ).toFixed(1)}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="relative h-72 border border-gray-200 rounded-lg p-4">
+                    {/* X-axis and Y-axis labels */}
+                    <div className="absolute inset-x-0 bottom-2 flex justify-center text-sm text-gray-600">
+                      Price (lower is better)
+                    </div>
+                    <div className="absolute left-2 inset-y-0 flex items-center -rotate-90 transform origin-center text-sm text-gray-600">
+                      Weight (lower is better)
+                    </div>
 
-                  {/* Pareto Front line */}
-                  <svg className="absolute inset-0 w-full h-full pointer-events-none">
-                    <defs>
-                      <marker
-                        id="arrowhead"
-                        markerWidth="10"
-                        markerHeight="7"
-                        refX="0"
-                        refY="3.5"
-                        orient="auto"
-                      >
-                        <polygon
-                          points="0 0, 10 3.5, 0 7"
-                          fill="currentColor"
-                          className="text-indigo-500"
-                        />
-                      </marker>
-                    </defs>
-                    {products
-                      .filter((p) => p.paretoEfficient)
-                      .sort((a, b) => (a.priceValue || 0) - (b.priceValue || 0))
-                      .map((product, index, array) => {
-                        if (index === array.length - 1) return null;
+                    {/* Scatter plot points */}
+                    {products.map((product) => {
+                      // Normalize coordinates for the chart
+                      const maxPrice = Math.max(
+                        ...products.map((p) => p.priceValue || 0)
+                      );
+                      const maxWeight = Math.max(
+                        ...products.map((p) => p.weightValue || 0)
+                      );
 
-                        const nextProduct = array[index + 1];
+                      const x =
+                        100 - ((product.priceValue || 0) / maxPrice) * 80 + 10; // 10-90% of width
+                      const y =
+                        10 + ((product.weightValue || 0) / maxWeight) * 80; // 10-90% of height, inverted for y-axis
 
-                        // Normalize coordinates for the chart
-                        const maxPrice = Math.max(
-                          ...products.map((p) => p.priceValue || 0)
-                        );
-                        const maxWeight = Math.max(
-                          ...products.map((p) => p.weightValue || 0)
-                        );
+                      // Size based on charge time (smaller is better)
+                      const maxChargeTime = Math.max(
+                        ...products.map((p) => p.chargeTimeValue || 0)
+                      );
+                      const size =
+                        10 -
+                        ((product.chargeTimeValue || 0) / maxChargeTime) * 6 +
+                        4; // 4-10px
 
-                        const x1 =
-                          100 -
-                          ((product.priceValue || 0) / maxPrice) * 80 +
-                          10;
-                        const y1 =
-                          10 + ((product.weightValue || 0) / maxWeight) * 80;
+                      const isHovered = hoveredProduct === product.id;
 
-                        const x2 =
-                          100 -
-                          ((nextProduct.priceValue || 0) / maxPrice) * 80 +
-                          10;
-                        const y2 =
-                          10 +
-                          ((nextProduct.weightValue || 0) / maxWeight) * 80;
+                      return (
+                        <React.Fragment key={product.id}>
+                          <button
+                            className={`absolute transform -translate-x-1/2 -translate-y-1/2 rounded-full flex items-center justify-center text-xs font-bold cursor-pointer hover:z-10 transition-all duration-200 ${
+                              product.paretoEfficient
+                                ? "bg-indigo-500 hover:bg-indigo-600 text-white"
+                                : "bg-gray-300 hover:bg-gray-400 text-gray-900"
+                            } ${
+                              product.selected
+                                ? "ring-2 ring-offset-2 ring-green-500"
+                                : ""
+                            } ${isHovered ? "z-30 scale-110" : "z-20"}`}
+                            style={{
+                              left: `${x}%`,
+                              top: `${y}%`,
+                              width: `${size * 2}px`,
+                              height: `${size * 2}px`,
+                            }}
+                            onClick={() => toggleProductSelection(product.id)}
+                            onMouseEnter={() => setHoveredProduct(product.id)}
+                            onMouseLeave={() => setHoveredProduct(null)}
+                          >
+                            {product.id}
+                          </button>
 
-                        return (
-                          <line
-                            key={`${product.id}-${nextProduct.id}`}
-                            x1={`${x1}%`}
-                            y1={`${y1}%`}
-                            x2={`${x2}%`}
-                            y2={`${y2}%`}
-                            stroke="currentColor"
-                            strokeWidth="2"
-                            strokeDasharray="4"
+                          {/* Hover tooltip */}
+                          {isHovered && (
+                            <div
+                              className="absolute bg-white border border-gray-200 rounded shadow-lg p-2 z-40 text-xs w-48"
+                              style={{
+                                left: `${Math.min(x + 5, 85)}%`,
+                                top: `${Math.min(y - 5, 80)}%`,
+                              }}
+                            >
+                              <div className="font-bold text-gray-900 mb-1">
+                                {product.title}
+                              </div>
+                              <div className="grid grid-cols-2 gap-x-2 gap-y-1">
+                                <div className="text-gray-500">Price:</div>
+                                <div className="text-gray-900 font-medium">
+                                  ${product.price.toLocaleString()}
+                                </div>
+                                <div className="text-gray-500">Weight:</div>
+                                <div className="text-gray-900 font-medium">
+                                  {product.weight}
+                                </div>
+                                <div className="text-gray-500">
+                                  Charge Time:
+                                </div>
+                                <div className="text-gray-900 font-medium">
+                                  {product.chargeTime}
+                                </div>
+                                <div className="text-gray-500">Score:</div>
+                                <div className="text-gray-900 font-medium">
+                                  {calculateScore(product).toFixed(1)}
+                                </div>
+                              </div>
+                              <div className="mt-1 pt-1 border-t border-gray-200 text-center">
+                                Click to{" "}
+                                {product.selected ? "remove" : "select"}
+                              </div>
+                            </div>
+                          )}
+                        </React.Fragment>
+                      );
+                    })}
+
+                    {/* Pareto Front line */}
+                    <svg className="absolute inset-0 w-full h-full pointer-events-none">
+                      <defs>
+                        <marker
+                          id="arrowhead"
+                          markerWidth="10"
+                          markerHeight="7"
+                          refX="0"
+                          refY="3.5"
+                          orient="auto"
+                        >
+                          <polygon
+                            points="0 0, 10 3.5, 0 7"
+                            fill="currentColor"
                             className="text-indigo-500"
                           />
-                        );
-                      })}
-                  </svg>
-                </div>
+                        </marker>
+                      </defs>
+                      {products
+                        .filter((p) => p.paretoEfficient)
+                        .sort(
+                          (a, b) => (a.priceValue || 0) - (b.priceValue || 0)
+                        )
+                        .map((product, index, array) => {
+                          if (index === array.length - 1) return null;
+
+                          const nextProduct = array[index + 1];
+
+                          // Normalize coordinates for the chart
+                          const maxPrice = Math.max(
+                            ...products.map((p) => p.priceValue || 0)
+                          );
+                          const maxWeight = Math.max(
+                            ...products.map((p) => p.weightValue || 0)
+                          );
+
+                          const x1 =
+                            100 -
+                            ((product.priceValue || 0) / maxPrice) * 80 +
+                            10;
+                          const y1 =
+                            10 + ((product.weightValue || 0) / maxWeight) * 80;
+
+                          const x2 =
+                            100 -
+                            ((nextProduct.priceValue || 0) / maxPrice) * 80 +
+                            10;
+                          const y2 =
+                            10 +
+                            ((nextProduct.weightValue || 0) / maxWeight) * 80;
+
+                          return (
+                            <line
+                              key={`${product.id}-${nextProduct.id}`}
+                              x1={`${x1}%`}
+                              y1={`${y1}%`}
+                              x2={`${x2}%`}
+                              y2={`${y2}%`}
+                              stroke="currentColor"
+                              strokeWidth="2"
+                              strokeDasharray="4"
+                              className="text-indigo-500"
+                            />
+                          );
+                        })}
+                    </svg>
+                  </div>
+                )}
 
                 <div className="mt-4 text-sm text-gray-600">
-                  <p>
-                    <strong>Pareto Front:</strong> These are the optimal choices
-                    where improving one attribute (price, weight, charge time)
-                    requires sacrificing another. Products on this front
-                    represent the best trade-offs.
-                  </p>
-                  <p className="mt-2">
-                    <strong>Circle Size:</strong> Indicates charge time (smaller
-                    circles = faster charging)
-                  </p>
+                  {viewMode === "3d" ? (
+                    <>
+                      <p>
+                        <strong>3D Pareto Front:</strong> This visualization
+                        shows all three criteria (price, weight, charge time)
+                        simultaneously. Products that represent optimal
+                        trade-offs form the Pareto front.
+                      </p>
+                      <p className="mt-2">
+                        <strong>Axes:</strong> X-axis = Price, Y-axis = Weight,
+                        Z-axis = Charge Time (lower values are better for all)
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <p>
+                        <strong>Pareto Front:</strong> These are the optimal
+                        choices where improving one attribute (price, weight,
+                        charge time) requires sacrificing another. Products on
+                        this front represent the best trade-offs.
+                      </p>
+                      <p className="mt-2">
+                        <strong>Circle Size:</strong> Indicates charge time
+                        (smaller circles = faster charging)
+                      </p>
+                    </>
+                  )}
                 </div>
 
                 {/* Selected Products Summary */}
@@ -678,7 +1117,7 @@ export default function InteractiveCompareProducts() {
                             <div className="bg-white rounded p-1 text-center">
                               <div className="text-gray-500">Price</div>
                               <div className="font-medium">
-                                ${product.price}
+                                ${product.price.toLocaleString()}
                               </div>
                             </div>
                             <div className="bg-white rounded p-1 text-center">
@@ -758,7 +1197,7 @@ export default function InteractiveCompareProducts() {
                               ? "bg-white"
                               : "bg-gray-50"
                           } 
-              hover:bg-gray-100 cursor-pointer transition-colors`}
+      hover:bg-gray-100 cursor-pointer transition-colors`}
                           onClick={() => toggleProductSelection(product.id)}
                         >
                           <td className="py-3 px-4 text-sm">
@@ -884,7 +1323,9 @@ export default function InteractiveCompareProducts() {
                   <div className="mt-4 grid grid-cols-3 gap-2 text-center text-sm">
                     <div className="bg-gray-50 p-2 rounded">
                       <div className="text-gray-500">Price</div>
-                      <div className="font-medium">${product.price}</div>
+                      <div className="font-medium">
+                        ${product.price.toLocaleString()}
+                      </div>
                     </div>
                     <div className="bg-gray-50 p-2 rounded">
                       <div className="text-gray-500">Weight</div>
