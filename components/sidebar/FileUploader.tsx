@@ -19,7 +19,9 @@ export const FileUploader: React.FC<FileUploaderProps> = ({
   return (
     <label
       htmlFor={id}
-      className={`flex items-center justify-center gap-2 bg-${color}-500 hover:bg-${color}-600 text-white text-sm py-2 px-3 rounded cursor-pointer transition-colors`}
+      className={`flex items-center justify-center gap-2 bg-${color}-500 hover:bg-${color}-600 ${
+        color == "purple" ? "text-black" : " text-white"
+      } text-sm py-2 px-3 rounded cursor-pointer transition-colors`}
     >
       {isUploading ? (
         <span>Uploading...</span>
