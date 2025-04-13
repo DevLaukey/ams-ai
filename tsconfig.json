@@ -24,6 +24,6 @@
       }
     ]
   },
-  "include": ["next-env.d.ts", ".next/types/**/*.ts", "**/*.ts", "**/*.tsx", "app/api/journey/route.js", "app/api/users/update-tier/route.js"],
+  "include": ["next-env.d.ts", ".next/types/**/*.ts", "**/*.ts", "**/*.tsx", "app/api/journey/route.js", "app/api/users/update-tier/route.js", "app/api/uploads/inventory/route.jsx"],
   "exclude": ["node_modules"]
 }
