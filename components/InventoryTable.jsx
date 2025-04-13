@@ -1,5 +1,15 @@
-import React from "react";
-import { Filter, ArrowUpDown, AlertCircle, Loader2 } from "lucide-react";
+import React, { useState } from "react";
+import {
+  Filter,
+  ArrowUpDown,
+  AlertCircle,
+  Loader2,
+  Edit,
+  RefreshCw,
+  Trash2,
+  ChevronUp,
+  ChevronDown,
+} from "lucide-react";
 
 // Table Pagination subcomponent
 const TablePagination = ({ currentPage, totalPages, onPageChange }) => (
@@ -52,6 +62,64 @@ const InventoryTable = ({
   handleReorder,
   handleDeleteItem,
 }) => {
+  // State for sorting
+  const [sortField, setSortField] = useState("name");
+  const [sortDirection, setSortDirection] = useState("asc");
+
+  // Function to handle sorting
+  const handleSort = (field) => {
+    // If clicking the same field, toggle direction
+    if (field === sortField) {
+      setSortDirection(sortDirection === "asc" ? "desc" : "asc");
+    } else {
+      // If clicking a new field, set it as sort field and default to ascending
+      setSortField(field);
+      setSortDirection("asc");
+    }
+  };
+
+  // Sort indicator component
+  const SortIndicator = ({ field }) => {
+    if (field !== sortField) {
+      return <ArrowUpDown className="ml-1 h-4 w-4" />;
+    }
+
+    return sortDirection === "asc" ? (
+      <ChevronUp className="ml-1 h-4 w-4" />
+    ) : (
+      <ChevronDown className="ml-1 h-4 w-4" />
+    );
+  };
+
+  // Function to sort data
+  const sortedData = [...inventoryData].sort((a, b) => {
+    // Handle numeric fields
+    if (
+      sortField === "quantity" ||
+      sortField === "price" ||
+      sortField === "reorder_point"
+    ) {
+      const aValue = parseFloat(a[sortField]);
+      const bValue = parseFloat(b[sortField]);
+
+      if (sortDirection === "asc") {
+        return aValue - bValue;
+      } else {
+        return bValue - aValue;
+      }
+    }
+
+    // Handle string fields
+    const aValue = a[sortField]?.toString().toLowerCase() || "";
+    const bValue = b[sortField]?.toString().toLowerCase() || "";
+
+    if (sortDirection === "asc") {
+      return aValue.localeCompare(bValue);
+    } else {
+      return bValue.localeCompare(aValue);
+    }
+  });
+
   const getStatusColor = (status) => {
     switch (status) {
       case "In Stock":
@@ -117,34 +185,67 @@ const InventoryTable = ({
             <thead>
               <tr className="border-b border-gray-200">
                 <th className="text-left py-3 px-4 text-sm font-medium text-gray-500">
-                  <div className="flex items-center">
+                  <button
+                    className="flex items-center focus:outline-none"
+                    onClick={() => handleSort("name")}
+                  >
                     Product Name
-                    <ArrowUpDown className="ml-1 h-4 w-4" />
-                  </div>
+                    <SortIndicator field="name" />
+                  </button>
                 </th>
                 <th className="text-left py-3 px-4 text-sm font-medium text-gray-500">
-                  <div className="flex items-center">SKU</div>
+                  <button
+                    className="flex items-center focus:outline-none"
+                    onClick={() => handleSort("sku")}
+                  >
+                    SKU
+                    <SortIndicator field="sku" />
+                  </button>
                 </th>
                 <th className="text-left py-3 px-4 text-sm font-medium text-gray-500">
-                  <div className="flex items-center">
+                  <button
+                    className="flex items-center focus:outline-none"
+                    onClick={() => handleSort("quantity")}
+                  >
                     Quantity
-                    <ArrowUpDown className="ml-1 h-4 w-4" />
-                  </div>
+                    <SortIndicator field="quantity" />
+                  </button>
                 </th>
                 <th className="text-left py-3 px-4 text-sm font-medium text-gray-500">
-                  Reorder Point
+                  <button
+                    className="flex items-center focus:outline-none"
+                    onClick={() => handleSort("reorder_point")}
+                  >
+                    Reorder Point
+                    <SortIndicator field="reorder_point" />
+                  </button>
                 </th>
                 <th className="text-left py-3 px-4 text-sm font-medium text-gray-500">
-                  <div className="flex items-center">
+                  <button
+                    className="flex items-center focus:outline-none"
+                    onClick={() => handleSort("price")}
+                  >
                     Price
-                    <ArrowUpDown className="ml-1 h-4 w-4" />
-                  </div>
+                    <SortIndicator field="price" />
+                  </button>
                 </th>
                 <th className="text-left py-3 px-4 text-sm font-medium text-gray-500">
-                  Supplier
+                  <button
+                    className="flex items-center focus:outline-none"
+                    onClick={() => handleSort("supplier")}
+                  >
+                    Supplier
+                    <SortIndicator field="supplier" />
+                  </button>
                 </th>
                 <th className="text-left py-3 px-4 text-sm font-medium text-gray-500">
-                  Status
+                  <button
+                    className="flex items-center focus:outline-none"
+                    onClick={() => handleSort("status")}
+                  >
+                    Status
+                    <SortIndicator field="status" />
+                  </button>
                 </th>
                 <th className="text-center py-3 px-4 text-sm font-medium text-gray-500">
                   Actions
@@ -152,14 +253,14 @@ const InventoryTable = ({
               </tr>
             </thead>
             <tbody>
-              {inventoryData.length === 0 ? (
+              {sortedData.length === 0 ? (
                 <tr>
                   <td colSpan={8} className="text-center py-6 text-gray-500">
                     No inventory items found matching your criteria.
                   </td>
                 </tr>
               ) : (
-                inventoryData.map((item) => (
+                sortedData.map((item) => (
                   <tr
                     key={item.id}
                     className="border-b border-gray-200 hover:bg-gray-50"
@@ -207,25 +308,28 @@ const InventoryTable = ({
                         {item.status}
                       </span>
                     </td>
-                    <td className="py-3 px-4 text-center">
-                      <div className="flex items-center justify-center space-x-2">
+                    <td className="py-3 px-4">
+                      <div className="flex items-center justify-center space-x-3">
                         <button
-                          className="text-blue-600 hover:text-blue-800"
+                          className="p-1 rounded-full hover:bg-gray-100 text-blue-600"
                           onClick={() => handleEditItem(item)}
+                          title="Edit item"
                         >
-                          Edit
+                          <Edit size={16} />
                         </button>
-                        <button
-                          className="text-blue-600 hover:text-blue-800"
+                        {/* <button
+                          className="p-1 rounded-full hover:bg-gray-100 text-blue-600"
                           onClick={() => handleReorder(item)}
+                          title="Reorder item"
                         >
-                          Reorder
-                        </button>
+                          <RefreshCw size={16} />
+                        </button> */}
                         <button
-                          className="text-red-600 hover:text-red-800"
+                          className="p-1 rounded-full hover:bg-gray-100 text-red-600"
                           onClick={() => handleDeleteItem(item)}
+                          title="Delete item"
                         >
-                          Delete
+                          <Trash2 size={16} />
                         </button>
                       </div>
                     </td>
