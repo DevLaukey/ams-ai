@@ -247,35 +247,36 @@ const Inventory = () => {
     }
 
     try {
-      toast.promise(
-        supabase
-          .from("inventory")
-          .update({
-            last_ordered: new Date().toISOString().split("T")[0],
-          })
-          .eq("id", item.id)
-          .eq("user_id", databaseUser.id) // Add user_id check for security
-          .then(async ({ error }) => {
-            if (error) throw error;
+     toast.promise(
+       (async () => {
+         const { error } = await supabase
+           .from("inventory")
+           .update({
+             last_ordered: new Date().toISOString().split("T")[0],
+           })
+           .eq("id", item.id)
+           .eq("user_id", databaseUser.id);
 
-            // Refresh inventory data
-            const from = (currentPage - 1) * itemsPerPage;
-            const to = from + itemsPerPage - 1;
-            const { data } = await supabase
-              .from("inventory")
-              .select("*")
-              .eq("user_id", databaseUser.id)
-              .range(from, to)
-              .order("name", { ascending: true });
+         if (error) throw error;
 
-            setInventoryData(data || []);
-          }),
-        {
-          loading: `Placing reorder for ${item.name}...`,
-          success: `Reorder placed for ${item.name}`,
-          error: "Failed to place reorder. Please try again.",
-        }
-      );
+         const from = (currentPage - 1) * itemsPerPage;
+         const to = from + itemsPerPage - 1;
+         const { data } = await supabase
+           .from("inventory")
+           .select("*")
+           .eq("user_id", databaseUser.id)
+           .range(from, to)
+           .order("name", { ascending: true });
+
+         setInventoryData(data || []);
+       })(),
+       {
+         loading: `Placing reorder for ${item.name}...`,
+         success: `Reorder placed for ${item.name}`,
+         error: "Failed to place reorder. Please try again.",
+       }
+     );
+
     } catch (error) {
       console.error("Error reordering item:", error);
     }
@@ -312,36 +313,37 @@ const Inventory = () => {
 
       if (isNewItem) {
         // Create new item
-        toast.promise(
-          supabase
-            .from("inventory")
-            .insert(itemData)
-            .then(({ error }) => {
-              if (error) throw error;
-            }),
-          {
-            loading: `Adding ${itemName}...`,
-            success: `${itemName} added successfully`,
-            error: "Failed to add item. Please try again.",
-          }
-        );
+      toast.promise(
+        (async () => {
+          const { error } = await supabase.from("inventory").insert(itemData);
+          if (error) throw error;
+        })(),
+        {
+          loading: `Adding ${itemName}...`,
+          success: `${itemName} added successfully`,
+          error: "Failed to add item. Please try again.",
+        }
+      );
+
       } else {
         // Update existing item - ensure it belongs to the current user
-        toast.promise(
-          supabase
-            .from("inventory")
-            .update(itemData)
-            .eq("id", editingItem.id)
-            .eq("user_id", databaseUser.id) // Add user_id check for security
-            .then(({ error }) => {
-              if (error) throw error;
-            }),
-          {
-            loading: `Updating ${itemName}...`,
-            success: `${itemName} updated successfully`,
-            error: "Failed to update item. Please try again.",
-          }
-        );
+       toast.promise(
+         async () => {
+           const { error } = await supabase
+             .from("inventory")
+             .update(itemData)
+             .eq("id", editingItem.id)
+             .eq("user_id", databaseUser.id);
+
+           if (error) throw error;
+         },
+         {
+           loading: `Updating ${itemName}...`,
+           success: `${itemName} updated successfully`,
+           error: "Failed to update item. Please try again.",
+         }
+       );
+
       }
 
       // Close modal and refresh data
@@ -399,35 +401,38 @@ const Inventory = () => {
                 toast.dismiss(t.id);
 
                 // Execute deletion after confirmation
-                toast.promise(
-                  supabase
-                    .from("inventory")
-                    .delete()
-                    .eq("id", item.id)
-                    .eq("user_id", databaseUser.id) // Add user_id check for security
-                    .then(async ({ error }) => {
-                      if (error) throw error;
+               toast.promise(
+                 async () => {
+                   const { error } = await supabase
+                     .from("inventory")
+                     .delete()
+                     .eq("id", item.id)
+                     .eq("user_id", databaseUser.id); // Add user_id check for security
 
-                      // Refresh inventory data
-                      const from = (currentPage - 1) * itemsPerPage;
-                      const to = from + itemsPerPage - 1;
-                      const { data, count } = await supabase
-                        .from("inventory")
-                        .select("*", { count: "exact" })
-                        .eq("user_id", databaseUser.id)
-                        .range(from, to)
-                        .order("name", { ascending: true });
+                   if (error) throw error;
 
-                      setInventoryData(data || []);
-                      setTotalPages(Math.ceil((count || 0) / itemsPerPage));
-                      fetchInventoryStats();
-                    }),
-                  {
-                    loading: `Deleting ${item.name}...`,
-                    success: `${item.name} has been deleted`,
-                    error: "Failed to delete item. Please try again.",
-                  }
-                );
+                   // Refresh inventory data
+                   const from = (currentPage - 1) * itemsPerPage;
+                   const to = from + itemsPerPage - 1;
+
+                   const { data, count } = await supabase
+                     .from("inventory")
+                     .select("*", { count: "exact" })
+                     .eq("user_id", databaseUser.id)
+                     .range(from, to)
+                     .order("name", { ascending: true });
+
+                   setInventoryData(data || []);
+                   setTotalPages(Math.ceil((count || 0) / itemsPerPage));
+                   fetchInventoryStats();
+                 },
+                 {
+                   loading: `Deleting ${item.name}...`,
+                   success: `${item.name} has been deleted`,
+                   error: "Failed to delete item. Please try again.",
+                 }
+               );
+
               }}
               className="px-3 py-1 text-sm bg-red-600 text-white rounded-md"
             >
