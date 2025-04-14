@@ -379,6 +379,7 @@ const DefibrillatorResponse = ({ responseText }: { responseText: string }) => {
         number,
         name,
         price,
+        type: additionalInfo.type || "Not specified", // Ensure 'type' is always provided
         ...additionalInfo,
         features,
       });
@@ -421,6 +422,7 @@ const DefibrillatorResponse = ({ responseText }: { responseText: string }) => {
             number: result.items.length + 1,
             name,
             price,
+            type: additionalInfo.type || "Not specified", // Ensure 'type' is always provided
             ...additionalInfo,
             features,
           });
