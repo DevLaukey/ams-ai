@@ -309,150 +309,162 @@ const DefibrillatorResponse = ({ responseText }: { responseText: string }) => {
   }
 
   // Parse comparison data (for defibrillator products)
-  function parseComparisonData(text: string): ComparisonResponseData {
-    // Use the existing logic from the original component
-    const result = {
-      type: "comparison" as const,
-      title: "Defibrillator Options",
-      items: [] as {
-        number: number;
-        name: string;
-        price: string;
-        type: string;
-        features: string[];
-        manufacturer?: string;
-        brand?: string;
-        energy?: string;
-        chargeTime?: string;
-        weight?: string;
-        warranty?: string;
-      }[],
-      disclaimer: "",
-    };
 
-    // Find disclaimer
-    const disclaimerMatches = [
-      "It is important to note",
-      "It's important to note",
-      "It's worth noting",
-      "Note:",
+  
+function parseComparisonData(text: string): ComparisonResponseData {
+  // Use the existing logic from the original component
+  const result = {
+    type: "comparison" as const,
+    title: "Defibrillator Options",
+    items: [] as {
+      number: number;
+      name: string;
+      price: string;
+      type: string;
+      features: string[];
+      manufacturer?: string;
+      brand?: string;
+      energy?: string;
+      chargeTime?: string;
+      weight?: string;
+      warranty?: string;
+    }[],
+    disclaimer: "",
+  };
+
+  // Find disclaimer
+  const disclaimerMatches = [
+    "It is important to note",
+    "It's important to note",
+    "It's worth noting",
+    "Note:",
+  ];
+
+  for (const disclaimerStart of disclaimerMatches) {
+    if (text.includes(disclaimerStart)) {
+      const startIndex = text.indexOf(disclaimerStart);
+      const endOfSentence = text.indexOf(".", startIndex);
+      if (endOfSentence !== -1) {
+        result.disclaimer = text
+          .substring(startIndex, endOfSentence + 1)
+          .trim();
+        break;
+      }
+    }
+  }
+
+  // Extract defibrillator listings from the text
+  // Pattern 1: Numbered list starting with a number and a period
+  const numberedListPattern = /(\d+)\.\s+([^:]+)(?::|Price:)\s+\$([0-9,.]+)/g;
+  let match;
+  let itemCounter = 0;
+
+  // Try to find numbered list pattern
+  while ((match = numberedListPattern.exec(text)) !== null) {
+    const number = parseInt(match[1]);
+    const name = match[2].replace(/\*\*/g, "").trim();
+    const price = `$${match[3]}`;
+
+    // Extract surrounding text for this item (up to 500 chars after the price)
+    const startPos = match.index;
+    const endPos = text.indexOf("\n\n", startPos + match[0].length);
+    const itemText = text.substring(
+      startPos,
+      endPos !== -1 ? endPos : startPos + 500
+    );
+
+    // Extract features and additional info
+    const features = extractFeatures(itemText);
+    const additionalInfo = extractAdditionalInfo(itemText);
+
+    result.items.push({
+      number,
+      name,
+      price,
+      type: additionalInfo.type || "Not specified", // Ensure 'type' is always provided
+      ...additionalInfo,
+      features,
+    });
+
+    itemCounter++;
+  }
+
+  // If no numbered list found, try narrative format patterns
+  if (itemCounter === 0) {
+    // Pattern for product name and price in narrative format
+    const narrativePatterns = [
+      /([A-Za-z0-9®\s-]+(?:Defibrillator|AED|Unit)[A-Za-z0-9®\s-]*)(?:[^$]*?)(?:Price:)?\s+\$([0-9,.]+)/gi,
+      /([A-Za-z0-9®\s-]+)(?:[^$]*?)(?:Price:|costs|priced at)\s+\$([0-9,.]+)/gi,
     ];
 
-    for (const disclaimerStart of disclaimerMatches) {
-      if (text.includes(disclaimerStart)) {
-        const startIndex = text.indexOf(disclaimerStart);
-        const endOfSentence = text.indexOf(".", startIndex);
-        if (endOfSentence !== -1) {
-          result.disclaimer = text
-            .substring(startIndex, endOfSentence + 1)
-            .trim();
-          break;
+    for (const pattern of narrativePatterns) {
+      pattern.lastIndex = 0; // Reset pattern matching
+      while ((match = pattern.exec(text)) !== null) {
+        const name = match[1].replace(/\*\*/g, "").trim();
+        const price = `$${match[2].replace(/,/g, "")}`;
+
+        // Skip if we already have this device (by name)
+        if (result.items.some((item) => item.name === name)) {
+          continue;
         }
+
+        // Extract surrounding paragraph for this item (200 chars before and 500 after)
+        const startPos = Math.max(0, match.index - 200);
+        const endPos = Math.min(
+          text.length,
+          match.index + match[0].length + 500
+        );
+        const itemText = text.substring(startPos, endPos);
+
+        // Extract features and additional info
+        const features = extractNarrativeFeatures(itemText);
+        const additionalInfo = extractNarrativeAdditionalInfo(itemText);
+
+        // Fix: Ensure type is always set before spreading additionalInfo
+        // This is where the fix is needed - we need to ensure 'type' is a string
+        // rather than being overwritten by the optional additionalInfo.type
+        result.items.push({
+          number: result.items.length + 1,
+          name,
+          price,
+          type: additionalInfo.type || "Not specified",
+          // Remove type from additionalInfo to avoid overriding the explicit type we set
+          manufacturer: additionalInfo.manufacturer,
+          brand: additionalInfo.brand,
+          energy: additionalInfo.energy,
+          chargeTime: additionalInfo.chargeTime,
+          weight: additionalInfo.weight,
+          warranty: additionalInfo.warranty,
+          features,
+        });
       }
     }
-
-    // Extract defibrillator listings from the text
-    // Pattern 1: Numbered list starting with a number and a period
-    const numberedListPattern = /(\d+)\.\s+([^:]+)(?::|Price:)\s+\$([0-9,.]+)/g;
-    let match;
-    let itemCounter = 0;
-
-    // Try to find numbered list pattern
-    while ((match = numberedListPattern.exec(text)) !== null) {
-      const number = parseInt(match[1]);
-      const name = match[2].replace(/\*\*/g, "").trim();
-      const price = `$${match[3]}`;
-
-      // Extract surrounding text for this item (up to 500 chars after the price)
-      const startPos = match.index;
-      const endPos = text.indexOf("\n\n", startPos + match[0].length);
-      const itemText = text.substring(
-        startPos,
-        endPos !== -1 ? endPos : startPos + 500
-      );
-
-      // Extract features and additional info
-      const features = extractFeatures(itemText);
-      const additionalInfo = extractAdditionalInfo(itemText);
-
-      result.items.push({
-        number,
-        name,
-        price,
-        type: additionalInfo.type || "Not specified", // Ensure 'type' is always provided
-        ...additionalInfo,
-        features,
-      });
-
-      itemCounter++;
-    }
-
-    // If no numbered list found, try narrative format patterns
-    if (itemCounter === 0) {
-      // Pattern for product name and price in narrative format
-      const narrativePatterns = [
-        /([A-Za-z0-9®\s-]+(?:Defibrillator|AED|Unit)[A-Za-z0-9®\s-]*)(?:[^$]*?)(?:Price:)?\s+\$([0-9,.]+)/gi,
-        /([A-Za-z0-9®\s-]+)(?:[^$]*?)(?:Price:|costs|priced at)\s+\$([0-9,.]+)/gi,
-      ];
-
-      for (const pattern of narrativePatterns) {
-        pattern.lastIndex = 0; // Reset pattern matching
-        while ((match = pattern.exec(text)) !== null) {
-          const name = match[1].replace(/\*\*/g, "").trim();
-          const price = `$${match[2].replace(/,/g, "")}`;
-
-          // Skip if we already have this device (by name)
-          if (result.items.some((item) => item.name === name)) {
-            continue;
-          }
-
-          // Extract surrounding paragraph for this item (200 chars before and 500 after)
-          const startPos = Math.max(0, match.index - 200);
-          const endPos = Math.min(
-            text.length,
-            match.index + match[0].length + 500
-          );
-          const itemText = text.substring(startPos, endPos);
-
-          // Extract features and additional info
-          const features = extractNarrativeFeatures(itemText);
-          const additionalInfo = extractNarrativeAdditionalInfo(itemText);
-
-          result.items.push({
-            number: result.items.length + 1,
-            name,
-            price,
-            type: additionalInfo.type || "Not specified", // Ensure 'type' is always provided
-            ...additionalInfo,
-            features,
-          });
-        }
-      }
-    }
-
-    // Determine appropriate title based on content
-    if (
-      text.toLowerCase().includes("affordable") ||
-      text.toLowerCase().includes("cheapest") ||
-      text.toLowerCase().includes("lower price")
-    ) {
-      result.title = "Most Affordable Defibrillators";
-    } else if (
-      text.toLowerCase().includes("expensive") ||
-      text.toLowerCase().includes("high-end") ||
-      text.toLowerCase().includes("premium")
-    ) {
-      result.title = "Premium Defibrillator Options";
-    } else if (
-      text.toLowerCase().includes("best") ||
-      text.toLowerCase().includes("top rated") ||
-      text.toLowerCase().includes("top-rated")
-    ) {
-      result.title = "Top-Rated Defibrillators";
-    }
-
-    return result;
   }
+
+  // Determine appropriate title based on content
+  if (
+    text.toLowerCase().includes("affordable") ||
+    text.toLowerCase().includes("cheapest") ||
+    text.toLowerCase().includes("lower price")
+  ) {
+    result.title = "Most Affordable Defibrillators";
+  } else if (
+    text.toLowerCase().includes("expensive") ||
+    text.toLowerCase().includes("high-end") ||
+    text.toLowerCase().includes("premium")
+  ) {
+    result.title = "Premium Defibrillator Options";
+  } else if (
+    text.toLowerCase().includes("best") ||
+    text.toLowerCase().includes("top rated") ||
+    text.toLowerCase().includes("top-rated")
+  ) {
+    result.title = "Top-Rated Defibrillators";
+  }
+
+  return result;
+  }
+  
 
   // Parse table data
   function parseTableData(text: string): TableResponseData {
@@ -868,128 +880,21 @@ const DefibrillatorResponse = ({ responseText }: { responseText: string }) => {
   }
 
   // New function to extract features from narrative text
-  function extractNarrativeFeatures(itemText: string): string[] {
-    const features = [];
-
-    // Look for a features section that starts with "key features", "features include", etc.
-    const featureSectionStarts = [
-      "key features",
-      "features include",
-      "some key features",
-      "features of this",
-      "include:",
-      "features:",
-    ];
-
-    let featureSection = "";
-    for (const startPhrase of featureSectionStarts) {
-      if (itemText.toLowerCase().includes(startPhrase)) {
-        const startIndex =
-          itemText.toLowerCase().indexOf(startPhrase) + startPhrase.length;
-        const nextParagraph = itemText.indexOf("\n\n", startIndex);
-        const endIndex = nextParagraph !== -1 ? nextParagraph : itemText.length;
-        featureSection = itemText.substring(startIndex, endIndex);
-        break;
-      }
-    }
-
-    // If we found a feature section, try to parse it
-    if (featureSection) {
-      // Look for bullet points or dashes
-      const bulletPoints = featureSection.match(/(?:- |• |^\* )([^\n-•]+)/gm);
-      if (bulletPoints) {
-        bulletPoints.forEach((point) => {
-          const feature = point.replace(/^- |^• |^\* /, "").trim();
-          if (feature) {
-            features.push(feature);
-          }
-        });
-      } else {
-        // If no bullet points, split by lines or commas
-        const lines = featureSection.split(/\n|,/);
-        for (const line of lines) {
-          const trimmed = line.trim();
-          if (
-            trimmed &&
-            !trimmed.toLowerCase().includes("manufacturer:") &&
-            !trimmed.toLowerCase().includes("price:")
-          ) {
-            features.push(trimmed);
-          }
-        }
-      }
-    }
-
-    // If we still don't have features, try to extract specifications as features
-    if (features.length === 0) {
-      // Look for technical specifications with colon
-      const specPattern = /([A-Za-z\s]+):\s+([^,\n]+)/g;
-      let specMatch;
-      while ((specMatch = specPattern.exec(itemText)) !== null) {
-        const specName = specMatch[1].trim();
-        const specValue = specMatch[2].trim();
-
-        // Skip some common non-feature specs
-        if (
-          !specName.toLowerCase().includes("price") &&
-          !specName.toLowerCase().includes("manufacturer") &&
-          !specName.toLowerCase().includes("brand")
-        ) {
-          features.push(`${specName}: ${specValue}`);
-        }
-      }
-    }
-
-    // If we still don't have features, try to find sentences with feature keywords
-    if (features.length === 0) {
-      const featureKeywords = [
-        "display",
-        "portable",
-        "lightweight",
-        "battery",
-        "rechargeable",
-        "technology",
-        "automatic",
-        "manual",
-        "adult",
-        "pediatric",
-        "pads",
-        "guidance",
-        "instruction",
-        "training",
-        "warranty",
-        "certified",
-      ];
-
-      const sentences = itemText.match(/[^.!?]+[.!?]+/g) || [];
-      for (const sentence of sentences) {
-        for (const keyword of featureKeywords) {
-          if (
-            sentence.toLowerCase().includes(keyword) &&
-            !sentence.toLowerCase().includes("price") &&
-            !sentence.toLowerCase().includes("would you like")
-          ) {
-            features.push(sentence.trim());
-            break;
-          }
-        }
-      }
-    }
-
-    return features.length > 0 ? features : ["No specific features mentioned"];
-  }
+ 
 
   // Enhanced function to extract additional info from narrative text
   function extractNarrativeAdditionalInfo(itemText: string) {
     const info: {
-      type?: string;
+      type: string; // Changed from type?: string to type: string (required)
       manufacturer?: string;
       brand?: string;
       energy?: string;
       chargeTime?: string;
       weight?: string;
       warranty?: string;
-    } = {};
+    } = {
+      type: "Not specified", // Set a default value for type
+    };
 
     // Extract operation type
     if (itemText.toLowerCase().includes("fully automatic")) {
@@ -1006,9 +911,8 @@ const DefibrillatorResponse = ({ responseText }: { responseText: string }) => {
       info.type = "Manual Operation";
     } else if (itemText.toLowerCase().includes("manual")) {
       info.type = "Manual";
-    } else {
-      info.type = "Not specified";
     }
+    // No else clause needed since we default to "Not specified"
 
     // Pattern to match various specifications
     const specPatterns = [
