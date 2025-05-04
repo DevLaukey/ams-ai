@@ -32,37 +32,85 @@ export async function GET() {
       "features",
     ];
 
-    // Create a worksheet with headers only
-    const ws = XLSX.utils.aoa_to_sheet([headers]);
+    // Sample product data (20 rows)
+    const data = Array.from({ length: 20 }).map((_, i) => {
+      const brands = [
+        "MedEquip",
+        "LifeSaver",
+        "CardioPro",
+        "HealthTech",
+        "MediCore",
+      ];
+      const models = [`MD-${100 + i}`];
+      const manufacturers = [
+        "MediTech Inc.",
+        "GlobalHealth",
+        "BioSystems Ltd.",
+        "PulseCorp",
+        "CareMakers",
+      ];
+      const countries = ["USA", "Germany", "China", "Japan", "UK"];
+      const applications = [
+        "Emergency",
+        "Surgery",
+        "ICU",
+        "Ambulance",
+        "Clinic",
+      ];
+      const chargeTimes = [
+        "5 Seconds",
+        "7 Seconds",
+        "10 Seconds",
+        "3 Seconds",
+        "6 Seconds",
+      ];
+      const contactTypes = ["Paddles", "Pads"];
+      const powerSources = ["AC", "Battery", "AC / Battery"];
+      const operationTypes = ["Manual", "Automatic", "Semi-Automatic"];
+      const promptTypes = ["Voice", "Visual", "None"];
+      const locations = [
+        "Warehouse A",
+        "Warehouse B",
+        "Main Store",
+        "Offsite",
+        "Storage Room",
+      ];
+      const features = [
+        "Rechargeable, Portable",
+        "Lightweight, Durable",
+        "Wireless, High Capacity",
+        "Multi-language, Easy to Use",
+        "Compact, Waterproof",
+      ];
 
-    // Add example row with format instructions
-    const exampleRow = [
-      "Example Product", // Product Title
-      "100.00", // Price
-      "ABC-123", // Manufacturer_code
-      "Model123", // Model
-      "Example Brand", // Brand
-      "Example Manufacturer", // Manufacturer
-      "USA", // Country of Origin
-      "Category", // Application
-      "5 Seconds", // Charge Time
-      "Paddles", // Contact Type
-      "10 x 5 x 3 Inch", // Dimensions
-      "LCD", // Display Type
-      "100-200 joules", // Energy Output
-      "Automatic", // Operation Type
-      "AC / Battery", // Power Source
-      "Voice", // Prompt Type
-      "12345678", // UNSPSC Code
-      "5 lbs", // Weight
-      "10", // Quantity
-      "3", // Reorder Point
-      "Warehouse A", // Location
-      "Feature 1, Feature 2", // features
-    ];
+      return [
+        `Defibrillator ${i + 1}`,
+        (Math.random() * (2000 - 500) + 500).toFixed(2),
+        `CODE-${1000 + i}`,
+        `MD-${100 + i}`,
+        brands[i % brands.length],
+        manufacturers[i % manufacturers.length],
+        countries[i % countries.length],
+        applications[i % applications.length],
+        chargeTimes[i % chargeTimes.length],
+        contactTypes[i % contactTypes.length],
+        "10 x 5 x 3 Inch",
+        "LCD",
+        `${Math.floor(Math.random() * 200 + 100)} joules`,
+        operationTypes[i % operationTypes.length],
+        powerSources[i % powerSources.length],
+        promptTypes[i % promptTypes.length],
+        `${Math.floor(Math.random() * 89999999 + 10000000)}`,
+        `${Math.floor(Math.random() * 7 + 3)} lbs`,
+        `${Math.floor(Math.random() * 26 + 5)}`,
+        `${Math.floor(Math.random() * 9 + 2)}`,
+        locations[i % locations.length],
+        features[i % features.length],
+      ];
+    });
 
-    // Add the example row
-    XLSX.utils.sheet_add_aoa(ws, [exampleRow], { origin: "A2" });
+    // Create a worksheet with headers and product data
+    const ws = XLSX.utils.aoa_to_sheet([headers, ...data]);
 
     // Add the worksheet to the workbook
     XLSX.utils.book_append_sheet(wb, ws, "Inventory Template");
